@@ -52,7 +52,27 @@ def get_user_info(user_id):
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"user": None, "error": {"code": 404, "message": "No such user found"}})
-    return jsonify({"user": user.get_user_attributes(), "error": None})
+    return jsonify({"user": {user.get_user_attributes(),['location']},"error": None})
+
+
+@api.route('/account/<user_id>/update', methods=['POST'])
+def update_user_data(user_id):
+    access = api.token_repository.authenticate_admin(get_request_token())
+    if not access:
+        return jsonify({"data": None, "error": {"code": 401, "message": "Authentication failed"}})
+    user = api.user_repository.get_user_by_id(ObjectId(user_id))
+    if user is None:
+        return jsonify({"success": False, "error": {"code": 404, "message": "No such user found"}})
+    data = request.get_json()
+    password = data['password']
+    name = user_id
+    house_name = ['University of Bristol']
+    house_location = location_attr['location'] = {'lat': 51.529249,
+                                                  'lng': -0.117973,
+                                                  'description': 'University of Bristol'}
+    data.update(password,name,house_name,house_location)
+
+    return jsonify({"success": True, "error": None})
 
 
 @api.route('/graph/<user_id>', methods=['POST'])
@@ -86,7 +106,7 @@ def get_all_users():
     if not access:
         return jsonify({"users": None, "error": {"code": 401, "message": "Authentication failed"}})
     users = api.user_repository.get_all_users()
-    return jsonify({"users": [user.get_user_attributes() for user in users], "error": None})
+    return jsonify({"users": {[user.get_user_attributes() for user in users],['location']}, "error": None})
 
 
 @api.route('/user/<string:user_id>/house', methods=['POST'])
@@ -98,7 +118,7 @@ def get_house_for_user(user_id):
     house = api.house_repository.get_houses_for_user(ObjectId(user_id))[0]
     if house is None:
         return jsonify({"house": None, "error": {"code": 404, "message": "No such House found"}})
-    return jsonify({"house": house.get_house_attributes(), "error": None})
+    return jsonify({"house": {house.get_house_attributes(),['location']}, "error": None})
 
 
 @api.route('/room/<string:room_id>', methods=['POST'])
