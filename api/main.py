@@ -63,12 +63,16 @@ def update_user_data(user_id):
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"success": False, "error": {"code": 404, "message": "No such user found"}})
-    data = {'name': 'XXX','password':'XXXXXX','house_name': 'XXXXXX',
-            'house_location': {'lat': 'XXX', 'lng': 'XXX', 'description': 'XXXXXX'}}
 
-    if data is not None:
-        data.update({'name': 'Jack','password':'123456','house_name': 'jacks house',
-            'house_location': {'lat': 51.529249, 'lng': -0.117973, 'description': 'University of Bristol'}})
+    data = request.get_json()
+    password = data['password']
+    name = data['name']
+    house_name = data['house_name']
+    house_location = data['location']
+
+    if any in data is not None:
+        data.update({ name:'name', password: 'password', house_name: 'house_name',
+                      house_location: {'lat': 51.529249, 'lng': -0.117973, 'description': 'University of Bristol'}})
 
     return jsonify({"success": True, "error": None})
 
