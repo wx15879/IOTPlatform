@@ -16,6 +16,7 @@ class User(object):
         self.email_address = None
         self.is_admin = None
         self.faulty = None
+        self.location = None
         self.set_attributes(attributes)
 
     def set_attributes(self, attributes):
@@ -25,10 +26,11 @@ class User(object):
         self.password_hash = attributes['password_hash']
         self.is_admin = attributes['is_admin']
         self.faulty = get_optional_attribute(attributes, 'faulty', False)
+        self.location = get_optional_attribute(attributes, 'location', None)
 
     def get_user_attributes(self):
         return {'user_id': self.user_id, 'name': self.name, 'password_hash': self.password_hash,
-                'faulty': self.faulty, 'email_address': self.email_address, 'is_admin': self.is_admin}
+                'faulty': self.faulty, 'email_address': self.email_address, 'is_admin': self.is_admin,'location':self.location}
 
     def get_user_id(self):
         return self.user_id
