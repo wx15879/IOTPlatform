@@ -34,3 +34,6 @@ class UserTests(unittest.TestCase):
     def test_UsersCannotHaveSameEmail(self):
         with self.assertRaisesRegex(Exception, "There is already an account with this email."):
             self.users.add_user("Benny Smith", "xxxxxxxx", "benny@example.com", False)
+
+
+

@@ -67,12 +67,13 @@ def update_user_data(user_id):
     logging.debug("Updating user account : {}".format(data))
     if user is not None:
         user = api.user_repository.update_user_account(
+                                              user_id=ObjectId(user_id),
                                               name=data['name'],
-                                              password=data['password'],
+                                              password_hash=data['password'],
                                               house_name=data['house_name'],
                                               house_location=['data_location'])
     logging.debug("User account updated: {}".format(user))
-    return jsonify({"success": True, "error": None})
+    return jsonify({"success": True, "user": user.update_user_data(), "error": None})
 
 
 @api.route('/graph/<user_id>', methods=['POST'])
