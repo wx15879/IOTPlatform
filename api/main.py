@@ -63,20 +63,16 @@ def update_user_data(user_id):
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"success": False, "error": {"code": 404, "message": "No such user found"}})
-
     data = request.get_json()
-    password = data['password']
-    name = data['name']
-    house_name = data['house_name']
-    house_location = data['location']
-
-    if data is not None:
-        api.user_repository.update_user_account = data.update({name: data['name']
-                                                            ,password: data['password']
-                                                            ,house_name: data['house_name']
-                                                            ,house_location: data['location']})
-
-    return jsonify({"Success": True, "error": None})
+    logging.debug("Updating user account : {}".format(data))
+    if user is not None:
+        user = api.user_repository.update_user_account(
+                                              name=data['name'],
+                                              password=data['password'],
+                                              house_name=data['house_name'],
+                                              house_location=['data_location'])
+    logging.debug("User account updated: {}".format(user))
+    return jsonify({"success": True, "error": None})
 
 
 @api.route('/graph/<user_id>', methods=['POST'])
