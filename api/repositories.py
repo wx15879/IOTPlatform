@@ -29,10 +29,16 @@ class UserRepository(Repository):
     def __init__(self, mongo_collection, repository_collection):
         Repository.__init__(self, mongo_collection, repository_collection)
 
-    def update_user_account(self,user_id,name,password_hash,house_location,house_name):
-        self.get_user_by_id(user_id=user_id)
-        self.collection.update_one({'id':user_id,'name': name, 'password_hash': password_hash,
-                                   'house_name': house_name,'house_location':house_location})
+    def update_user_account(self,user_id):
+        user = self.get_user_by_id(user_id)
+        if user is None:
+            return None
+        self.collection.update_one({'_id': user_id}, {"$set": {'name': {'name'}}})
+        self.collection.update_one({'_id': user_id}, {"$set": {'password_hash': {'password_hash'}}})
+        self.collection.update_one({'_id': user_id}, {"$set": {'house_name': "house_name"}})
+        self.collection.update_one({'_id': user_id}, {"$set": {'house_location': {'house_location'}}})
+        self.update_user_account(user)
+
 
     def add_user(self, name, password_hash, email_address, is_admin):
         logging.debug("adding user!")
