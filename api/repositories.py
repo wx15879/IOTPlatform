@@ -36,6 +36,7 @@ class UserRepository(Repository):
         self.collection.update_one({'user_id': user_id, 'name': name,
                                     'password_hash': password, 'house_name': house_name,
                                     'house_location': house_location})
+        return user.user_id
 
     def add_user(self, name, password_hash, email_address, is_admin):
         logging.debug("adding user!")
