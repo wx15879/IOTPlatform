@@ -46,18 +46,18 @@ def get_request_token():
 
 @api.route('/user/<string:user_id>', methods=['POST'])
 def get_user_info(user_id):
-    access = api.token_repository.authenticate_user(ObjectId(user_id), get_request_token())
+    access = api.device_repository.validate_token(ObjectId(device_id), get_request_token())
     if not access:
-        return jsonify({"user": None, "error": {"code": 401, "message": "Authentication failed"}})
+        return jsonify({"device": None, "error": {"code": 401, "message": "Authentication failed"}})
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"user": None, "error": {"code": 404, "message": "No such user found"}})
-    return jsonify({"user": user.get_user_attributes(),"error": None})
+    return jsonify({"update": user.get_user_attributes(),"error": None})
 
 
 @api.route('/account/<user_id>/update', methods=['POST'])
 def update_user_data(user_id):
-    access = api.token_repository.authenticate_admin(get_request_token())
+    access = api.token_repository.authenticate_user(ObjectId(user_id), get_request_token())
     if not access:
         return jsonify({"data": None, "error": {"code": 401, "message": "Authentication failed"}})
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
@@ -73,7 +73,7 @@ def update_user_data(user_id):
                                               house_name=data['house_name'],
                                               house_location=['data_location'])
     logging.debug("User account updated: {}".format(user))
-    return jsonify({"success": True, "user": user.update_user_data(), "error": None})
+    return jsonify({"success": True, "error": None})
 
 
 @api.route('/graph/<user_id>', methods=['POST'])
