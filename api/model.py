@@ -1,5 +1,6 @@
-import logging
+import datetime
 import time
+from datetime import timedelta
 
 import requests
 
@@ -28,9 +29,13 @@ class User(object):
         self.faulty = get_optional_attribute(attributes, 'faulty', False)
         self.location = get_optional_attribute(attributes, 'location', None)
 
-    def get_user_attributes(self):
-        return {'user_id': self.user_id, 'name': self.name, 'password_hash': self.password_hash,
-                'faulty': self.faulty, 'email_address': self.email_address, 'is_admin': self.is_admin,'location':self.location}
+    def get_user_attributes(self, include_password_hash=False):
+        data = {'user_id': self.user_id, 'name': self.name, 'faulty': self.faulty,
+                'email_address': self.email_address, 'is_admin': self.is_admin, 'location': self.location}
+        if include_password_hash:
+            data['password_hash'] = self.password_hash
+
+        return data
 
     def get_user_id(self):
         return self.user_id
@@ -85,6 +90,7 @@ class Device(object):
         self.device_type = None
         self.vendor = None
         self.configuration = None
+        self.locking_theme_id = None
         self.faulty = None
         self.target = {}
         self.status = {}
@@ -96,6 +102,7 @@ class Device(object):
         self.room_id = attributes['room_id']
         self.name = attributes['name']
         self.device_type = attributes['device_type']
+        self.locking_theme_id = get_optional_attribute(attributes, 'locking_theme_id', None)
         self.faulty = get_optional_attribute(attributes, 'faulty', False)
         self.target = get_optional_attribute(attributes, 'target', {})
         self.status = get_optional_attribute(attributes, 'status', {})
@@ -103,15 +110,15 @@ class Device(object):
         self.configuration = get_optional_attribute(attributes, 'configuration', None)
 
     def get_device_attributes(self):
-        return {'_id': str(self.device_id), 'device_id': str(self.device_id), 'house_id': self.house_id,
+        return {'device_id': self.device_id, 'house_id': self.house_id,
                 'room_id': self.room_id, 'name': self.name, 'device_type': self.device_type,
-                'faulty': self.faulty, 'target': self.target, 'status': self.status,
-                'vendor': self.vendor, 'configuration': self.configuration}
+                'locking_theme_id': self.locking_theme_id, 'faulty': self.faulty, 'target': self.target,
+                'status': self.status, 'vendor': self.vendor, 'configuration': self.configuration}
 
     def get_device_id(self):
         return self.device_id
 
-    def read_current_state(self):
+    def read_current_state(self, include_usage_data=0):
         error = None
         data = None
         timestamp = str(time.time())
@@ -135,12 +142,9 @@ class Device(object):
                     username = self.configuration['username']
                     password = self.configuration['password']
                     dev_id = int(self.configuration['device_id'])
-                    logging.debug(
-                        "Retrieving mihome4u data. Auth = {}, json = {}".format((username, password), {"id": dev_id}))
                     r = requests.get("https://mihome4u.co.uk/api/v1/subdevices/show", auth=(username, password),
-                                     json={"id": dev_id})
+                                     json={"id": dev_id, "include_usage_data": include_usage_data})
                     r_data = r.json()
-                    logging.debug("Got: {}".format(r_data))
                     if r_data["status"] != "success":
                         error = "External error: {}".format(r_data['status'])
                     else:
@@ -149,12 +153,45 @@ class Device(object):
                     error = "Cannot read device data from URL: {}".format(ex)
             else:
                 error = "Not all required information is set in the configuration"
-            logging.debug("Read current data for the device: {}".format(data))
         else:
             error = "read_current_state not implemented for vendor {}".format(self.vendor)
         if error is not None:
             return {"error": error, "timestamp": timestamp}
         return {"data": data, "timestamp": timestamp}
+
+    def get_energy_readings(self):
+        error = None
+        data = None
+        if self.vendor == "energenie":
+            if "username" in self.configuration and "password" in self.configuration and "device_id" in self.configuration:
+                try:
+                    username = self.configuration['username']
+                    password = self.configuration['password']
+                    dev_id = int(self.configuration['device_id'])
+                    date_format = "%Y-%m-%dT%H:%M:%S.%f%Z"
+                    json_data = {"id": dev_id,
+                                 "data_type": "watts",
+                                 "resolution": "daily",
+                                 "start_time": ((datetime.datetime.now() - timedelta(days=7)).strftime(date_format)),
+                                 "end_time": (datetime.datetime.now().strftime(date_format)),
+                                 "limit": 7}
+                    r = requests.get(
+                        "https://mihome4u.co.uk/api/v1/subdevices/get_data",
+                        auth=(username, password),
+                        json=json_data
+                    )
+                    data = r.json()
+                    if data['status'] != "success":
+                        error = "External error: {}".format(data['status'])
+                except Exception as ex:
+                    error = "Cannot get energy reading: {}".format(ex)
+            else:
+                error = "Not all required information is set in the configuration"
+        else:
+            error = "get_energy_reading not implemented for vendor {}".format(self.vendor)
+        if error is not None:
+            return {"error": error}
+        return {"data": data}
 
     def is_faulty(self):
         if "error" in self.status['last_read'] and self.status['last_read']['error'] is not None:
@@ -165,24 +202,11 @@ class Device(object):
 class Thermostat(Device):
     def __init__(self, attributes):
         Device.__init__(self, attributes)
-        self.temperature_scale = None
-        self.target['target_temperature'] = None
-        self.status['last_temperature'] = None
-        self.status['power_state'] = None
-        if self.vendor == 'netatmo':
-            self.target['locked_max_temp'] = None
-            self.target['locked_min_temp'] = None
 
     def set_attributes(self, attributes):
         attributes['device_type'] = "thermostat"
         Device.set_attributes(self, attributes=attributes)
         self.temperature_scale = get_optional_attribute(attributes, 'temperature_scale')
-        self.target['target_temperature'] = get_optional_attribute(attributes, 'target_temperature')
-        self.status['last_temperature'] = get_optional_attribute(attributes, 'last_temperature')
-        self.status['power_state'] = get_optional_attribute(attributes, 'power_state')
-        if self.vendor == 'netatmo':
-            self.target['locked_max_temp'] = get_optional_attribute(attributes, 'locked_max_temperature')
-            self.target['locked_min_temp'] = get_optional_attribute(attributes, 'locked_min_temperature')
 
     def get_device_attributes(self):
         attributes = Device.get_device_attributes(self)
@@ -193,6 +217,8 @@ class Thermostat(Device):
 
     def configure_target_temperature(self, temperature):
         error = None
+        data = None
+        timestamp = str(time.time())
         if self.vendor == "OWN":
             if "url" in self.configuration:
                 url = self.configuration['url'] + "/write"
@@ -205,16 +231,34 @@ class Thermostat(Device):
                     error = "Cannot configure target temperature from configuration URL: {}".format(ex)
             else:
                 error = "Can't configure target temperature as no url is set in configuration"
+        elif self.vendor == "energenie":
+            if "username" in self.configuration and "password" in self.configuration and "device_id" in self.configuration:
+                try:
+                    username = self.configuration['username']
+                    password = self.configuration['password']
+                    dev_id = int(self.configuration['device_id'])
+                    r = requests.get("https://mihome4u.co.uk/api/v1/subdevices/set_target_temperature",
+                                     auth=(username, password),
+                                     json={"id": dev_id, "temperature": temperature})
+                    r_data = r.json()
+                    if r_data["status"] != "success":
+                        error = "External error: {}".format(r_data['status'])
+                    else:
+                        data = {'target_temperature': r_data['data']['target_temperature'],
+                                'voltage': r_data['data']['voltage']}
+                except Exception as ex:
+                    error = "Cannot read device data from URL: {}".format(ex)
+            else:
+                error = "Not all required information is set in the configuration"
         else:
             error = "configure_target_temperature not implemented for vendor {}".format(self.vendor)
-        return error
+        return {"error": error, "data": data, "timestamp": timestamp}
 
 
 class MotionSensor(Device):
     def __init__(self, attributes):
         Device.__init__(self, attributes)
         self.sensor_data = None
-        self.status = {}
 
     def set_attributes(self, attributes):
         Device.set_attributes(self, attributes=attributes)
@@ -230,8 +274,12 @@ class LightSwitch(Device):
     def __init__(self, attributes):
         Device.__init__(self, attributes)
 
+    def set_attributes(self, attributes):
+        Device.set_attributes(self, attributes=attributes)
+
     def get_device_attributes(self):
-        return Device.get_device_attributes(self)
+        attributes = Device.get_device_attributes(self)
+        return attributes
 
     def configure_power_state(self, power_state):
         error = None
@@ -241,15 +289,11 @@ class LightSwitch(Device):
                     username = self.configuration['username']
                     password = self.configuration['password']
                     dev_id = int(self.configuration['device_id'])
-                    logging.debug(
-                        "Setting power state mihome4u data. Auth = {}, json = {}".format((username, password),
-                                                                                         {"id": dev_id}))
                     r = requests.get(
                         "https://mihome4u.co.uk/api/v1/subdevices/power_{}".format("on" if power_state == 1 else "off"),
                         auth=(username, password),
                         json={"id": dev_id})
                     r_data = r.json()
-                    logging.debug("Got: {}".format(r_data))
                     if r_data["status"] != "success":
                         error = "External error: {}".format(r_data['status'])
                 except Exception as ex:
@@ -277,16 +321,55 @@ class OpenSensor(Device):
 
 
 class Trigger:
-    def __init__(self, trigger, action):
+    def __init__(self, attributes):
         self.trigger_id = None
-        self.trigger_sensor_id = None
-        self.trigger = trigger
+        self.sensor_id = None
+        self.event = None
+        self.event_params = None
         self.actor_id = None
-        self.action = action
+        self.action = None
+        self.action_params = None
+        self.user_id = None
+        self.reading = None
+        self.set_attributes(attributes)
+
+    def set_attributes(self, attributes):
+        self.trigger_id = attributes['_id']
+        self.sensor_id = attributes['sensor_id']
+        self.event = attributes['event']
+        self.event_params = attributes['event_params']
+        self.actor_id = attributes['actor_id']
+        self.action = attributes['action']
+        self.action_params = attributes['action_params']
+        self.user_id = attributes['user_id']
+        self.reading = attributes['reading']
 
     def get_trigger_attributes(self):
-        return {'trigger_id': self.trigger_id, 'trigger_sensor_id': self.trigger_sensor_id,
-                'trigger': self.trigger, 'actor_id': self.actor_id, 'action': self.action}
+        return {'trigger_id': self.trigger_id, 'sensor_id': self.sensor_id,
+                'event': self.event, 'event_params': self.event_params, 'actor_id': self.actor_id,
+                'action': self.action, 'action_params': self.action_params, 'user_id': self.user_id,
+                'reading': self.reading}
+
+
+class Theme:
+    def __init__(self, attributes):
+        self.theme_id = None
+        self.name = None
+        self.user_id = None
+        self.settings = []
+        self.active = False
+        self.set_attributes(attributes)
+
+    def set_attributes(self, attributes):
+        self.theme_id = attributes['_id']
+        self.name = attributes['name']
+        self.user_id = attributes['user_id']
+        self.settings = attributes['settings']
+        self.active = attributes['active']
+
+    def get_theme_attributes(self):
+        return {'theme_id': self.theme_id, 'name': self.name,
+                'user_id': self.user_id, 'settings': self.settings, 'active': self.active}
 
 
 class Token:
