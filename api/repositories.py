@@ -41,11 +41,14 @@ class UserRepository(Repository):
 
     def update_user_account(self, user_id, name, password):
         user = self.get_user_by_id(user_id)
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         if user is None:
             return False
-        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        if name is None:
+            return False
+        if password_hash is None:
+            return False
         self.collection.update_one({'_id': user_id}, {"$set": {'name': name, 'password_hash': password_hash}})
-
         return True
 
     def add_user(self, name, password_hash, email_address, is_admin):
@@ -139,6 +142,10 @@ class HouseRepository(Repository):
     def update_house(self, house_id, name, location):
         house = self.get_house_by_id(house_id)
         if house is None:
+            return False
+        if name is None:
+            return False
+        if location is None
             return False
         self.collection.update_one({'_id': house_id}, {"$set": {'name': name, 'location': location}})
         return True
