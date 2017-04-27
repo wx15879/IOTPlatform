@@ -39,14 +39,14 @@ class UserRepository(Repository):
     def __init__(self, mongo_collection, repository_collection):
         Repository.__init__(self, mongo_collection, repository_collection)
 
-    def update_user_account(self,user_id,name,password,house_name,house_location):
+    def update_user_account(self, user_id, name, password):
         user = self.get_user_by_id(user_id)
         if user is None:
-            return None
-        self.collection.update_one({'user_id': user_id, 'name': name,
-                                    'password_hash': password, 'house_name': house_name,
-                                    'house_location': house_location})
-        return user.user_id
+            return False
+        password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        self.collection.update_one({'_id': user_id}, {"$set": {'name': name, 'password_hash': password_hash}})
+
+        return True
 
     def add_user(self, name, password_hash, email_address, is_admin):
         existing_user = self.get_user_by_email(email_address)
@@ -135,6 +135,13 @@ class HouseRepository(Repository):
                 raise Exception("There is already a house with this name.")
         house = self.collection.insert_one({'user_id': user_id, 'name': name, 'location': location})
         return house.inserted_id
+
+    def update_house(self, house_id, name, location):
+        house = self.get_house_by_id(house_id)
+        if house is None:
+            return False
+        self.collection.update_one({'_id': house_id}, {"$set": {'name': name, 'location': location}})
+        return True
 
     def remove_house(self, house_id):
         house = self.get_house_by_id(house_id)
@@ -520,7 +527,8 @@ class ThemeRepository(Repository):
         Repository.__init__(self, mongo_collection, repository_collection)
 
     def add_theme(self, user_id, name, settings, active):
-        new_theme = self.collection.insert_one({'user_id': user_id, 'name': name, 'settings': settings, 'active': active})
+        new_theme = self.collection.insert_one(
+            {'user_id': user_id, 'name': name, 'settings': settings, 'active': active})
         return new_theme.inserted_id
 
     def remove_theme(self, theme_id):

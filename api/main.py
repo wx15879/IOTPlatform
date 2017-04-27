@@ -46,33 +46,40 @@ def get_request_token():
 
 @api.route('/user/<string:user_id>', methods=['POST'])
 def get_user_info(user_id):
-    access = api.device_repository.validate_token(ObjectId(device_id), get_request_token())
+    access = api.device_repository.validate_token(ObjectId(user_id), get_request_token())
     if not access:
         return jsonify({"device": None, "error": {"code": 401, "message": "Authentication failed"}})
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"user": None, "error": {"code": 404, "message": "No such user found"}})
-    return jsonify({"update": user.get_user_attributes(),"error": None})
+    return jsonify({"update": user.get_user_attributes(), "error": None})
 
 
 @api.route('/account/<user_id>/update', methods=['POST'])
 def update_user_data(user_id):
-    access = api.token_repository.authenticate_user(ObjectId(user_id), get_request_token())
-    if not access:
-        return jsonify({"data": None, "error": {"code": 401, "message": "Authentication failed"}})
     user = api.user_repository.get_user_by_id(ObjectId(user_id))
     if user is None:
         return jsonify({"success": False, "error": {"code": 404, "message": "No such user found"}})
+    access = api.token_repository.authenticate_user(ObjectId(user_id), get_request_token())
+    if not access:
+        return jsonify({"data": None, "error": {"code": 401, "message": "Authentication failed"}})
     data = request.get_json()
     logging.debug("Updating user account : {}".format(data))
-    if user is not None:
-        user = api.user_repository.update_user_account(
-                                              user_id=ObjectId(user_id),
-                                              name=data['name'],
-                                              password_hash=data['password'],
-                                              house_name=data['house_name'],
-                                              house_location=['data_location'])
+    user = api.user_repository.update_user_account(
+        user_id=ObjectId(user_id),
+        name=data['name'],
+        password=data['password'],
+        house_name=data['house_name'],
+        house_location=data['house_location'])
     logging.debug("User account updated: {}".format(user))
+    house = api.house_repository.get_houses_for_user(ObjectId(user_id))[0]
+    if house is None:
+        return jsonify({"house": None, "error": {"code": 404, "message": "No such House found"}})
+    house = api.house_repository.update_house(
+        house_id=house.house_id,
+        name=data['house_name'],
+        location=data['house_location']
+    )
     return jsonify({"success": True, "error": None})
 
 
